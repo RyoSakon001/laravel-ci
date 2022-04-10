@@ -4,4 +4,29 @@ jobs:
     docker:
       - image: circleci/php:7.3-node-browsers
     steps:
-      - run: echo "Hello World"
+      - checkout # CircleCI環境にgit cloneする
+      - run: sudo composer self-update --1
+      - restore_cache:
+          key: composer-v1-{{ checksum "composer.lock" }} # saveの内容から名称を選んで取り出す
+      - run: composer install -n --prefer-dist
+      - save_cache:
+          key: composer-v1-{{ checksum "composer.lock" }} # 保存するキャッシュ名＋現在のcomposer.lockのハッシュ値
+          paths: # 保存場所
+            - vendor
+      - restore_cache:
+          key: npm-v1-{{ checksum "package-lock.json"}}
+      - run:
+          # | は複数行でコマンドを実行することの意。npm ci では、必ずnode_modulesを削除してしまうため
+          name: npm ci
+          command: |
+            if [ ! -d node_modules ]; then
+              npm ci
+            fi
+      - save_cache:
+          key: npm-v1-{{ checksum "package-lock.json" }}
+          paths:
+            - node_modules
+      - run: npm run dev
+      - run:
+          name: php test # 非省略形
+          command: vendor/bin/phpunit
