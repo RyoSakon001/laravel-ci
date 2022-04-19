@@ -1,7 +1,7 @@
 version: 2.1
 jobs:
   build:
-    docker:
+    docker: # 使い捨て
       - image: circleci/php:7.3-node-browsers
       - image: circleci/postgres:11.6-alpine
         environment:
@@ -51,3 +51,31 @@ jobs:
       - run:
           name: php test # 非省略形
           command: vendor/bin/phpunit
+  deploy: # 使い捨てしない。デプロイに使用。
+    docker:
+      - image: circleci/php:7.3-node-browsers
+    steps:
+      - add_ssh_keys # CircleCIの秘密鍵でログインする
+      - run:
+          name: deploy
+          command: |
+            ssh -o StrictHostKeyChecking=no -t webapp@${HOST_NAME} "cd laravel-ci && \
+              git pull origin master && \
+              composer install -n --no-dev --prefer-dist && \
+              npm ci && \
+              npm run prod && \
+              php artisan migrate --force && \
+              php artisan config:cache"
+
+workflows:
+  version: 2
+  build_deploy:
+    jobs:
+      - build
+      - deploy:
+          requires:
+            - build
+          filters: # masterブランチにプッシュしたときのみ
+            branches:
+              only:
+                - master
